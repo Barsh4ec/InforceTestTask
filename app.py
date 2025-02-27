@@ -11,6 +11,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+
 class Employee(Base):
     __tablename__ = "employees"
     id = Column(Integer, primary_key=True, index=True)
@@ -36,4 +37,29 @@ class Vote(Base):
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"))
     menu_id = Column(Integer, ForeignKey("menus.id"))
+
+
+class EmployeeCreate(BaseModel):
+    username: str
+    password: str
+
+class RestaurantCreate(BaseModel):
+    name: str
+
+class MenuCreate(BaseModel):
+    restaurant_id: int
+    items: str
+
+class VoteCreate(BaseModel):
+    employee_id: int
+    menu_id: int
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
