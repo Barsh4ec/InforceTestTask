@@ -1,15 +1,17 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import date
 
 from db.database import Base
 
 
-class Employee(Base):
+class User(Base):
     __tablename__ = "employees"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
     password = Column(String)
+    disabled = Column(Boolean)
 
 
 class Restaurant(Base):
