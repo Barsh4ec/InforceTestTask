@@ -1,20 +1,26 @@
+from datetime import date, timedelta
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, select
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import and_
-from datetime import date, timedelta, timezone
-import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from typing import Annotated
 
 from db.database import SessionLocal
 from schemas import Token, UserCreate, UserOut, RestaurantCreate, MenuCreate, VoteCreate
 from db.models import User, Restaurant, Menu, Vote
-from crud import authenticate_user, create_access_token, get_current_active_user
+from crud import (
+    authenticate_user,
+    create_access_token,
+    get_current_active_user,
+    get_user_data,
+    get_restaurant,
+    get_menu,
+    get_results_today
+)
 
-from typing import Annotated
+
 
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -44,7 +50,7 @@ async def login_for_access_token(
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
         db: Session = Depends(get_db)  # Inject database session
 ) -> Token:
-    user_data = db.execute(select(User).where(User.username == form_data.username)).scalar_one_or_none()
+    user_data = get_user_data(db, form_data.username)
 
     if not user_data:
         raise HTTPException(
@@ -99,7 +105,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/restaurants")
 def create_restaurant(restaurant: RestaurantCreate, db: Session = Depends(get_db)):
-    existing_restaurant = db.query(Restaurant).filter(Restaurant.name == restaurant.name).first()
+    existing_restaurant = get_restaurant(db, restaurant.name)
     if existing_restaurant:
         raise HTTPException(status_code=400, detail="Restaurant with this name already exists")
 
@@ -121,7 +127,7 @@ def create_menu(menu: MenuCreate, db: Session = Depends(get_db)):
 
 @app.get("/menus/today")
 def get_today_menu(db: Session = Depends(get_db)):
-    today_menus = db.query(Menu).filter(Menu.date == date.today()).all()
+    today_menus = get_menu(db)
     return today_menus
 
 
@@ -142,13 +148,6 @@ def vote(vote: VoteCreate, db: Session = Depends(get_db)):
 
 @app.get("/results")
 def get_results(db: Session = Depends(get_db)):
-    from sqlalchemy.sql import func
-    results = (
-        db.query(Menu.restaurant_id, func.count(Vote.id).label("votes"))
-        .join(Vote, Vote.menu_id == Menu.id)
-        .filter(Menu.date == date.today())
-        .group_by(Menu.restaurant_id)
-        .all()
-    )
+    results = get_results_today(db)
 
     return [{"restaurant_id": r.restaurant_id, "votes": r.votes} for r in results]
