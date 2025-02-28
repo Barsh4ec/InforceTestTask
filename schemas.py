@@ -21,6 +21,26 @@ class UserInDB(UserCreate):
     password: str
 
 
-class UserOut(BaseModel):
+class UserOut(UserCreate):
     id: int
     email: EmailStr
+    full_name: str
+
+
+class EmployeeCreate(BaseModel):
+    username: str
+    password: str
+
+
+class RestaurantCreate(BaseModel):
+    name: str
+
+
+class MenuCreate(BaseModel):
+    restaurant_id: int
+    items: str
+
+
+class VoteCreate(BaseModel):
+    employee_id: int
+    menu_id: int

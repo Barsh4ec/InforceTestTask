@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from datetime import date, timedelta, timezone
@@ -9,9 +9,9 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from db.database import SessionLocal
-from schemas import Token, UserCreate, UserOut
-from db.models import User
-from crud import authenticate_user, fake_users_db, create_access_token, get_current_active_user
+from schemas import Token, UserCreate, UserOut, RestaurantCreate, MenuCreate, VoteCreate
+from db.models import User, Restaurant, Menu, Vote
+from crud import authenticate_user, create_access_token, get_current_active_user
 
 from typing import Annotated
 
@@ -40,19 +40,32 @@ def on_startup():
 
 @app.post("/token")
 async def login_for_access_token(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+        db: Session = Depends(get_db)  # Inject database session
 ) -> Token:
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    user_data = db.execute(select(User).where(User.username == form_data.username)).scalar_one_or_none()
+
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = authenticate_user(user_data, form_data.username, form_data.password)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -74,9 +87,56 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         username=user.username,
         email=user.email,
         password=hashed_password,
-        disabled=False
+        disabled=False,
+        full_name=user.full_name,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+@app.post("/restaurants")
+def create_restaurant(restaurant: RestaurantCreate, db: Session = Depends(get_db)):
+    db_restaurant = Restaurant(name=restaurant.name)
+    db.add(db_restaurant)
+    db.commit()
+    db.refresh(db_restaurant)
+    return db_restaurant
+
+
+@app.post("/menus")
+def create_menu(menu: MenuCreate, db: Session = Depends(get_db)):
+    db_menu = Menu(restaurant_id=menu.restaurant_id, items=menu.items)
+    db.add(db_menu)
+    db.commit()
+    db.refresh(db_menu)
+    return db_menu
+
+
+@app.get("/menus/today")
+def get_today_menu(db: Session = Depends(get_db)):
+    today_menus = db.query(Menu).filter(Menu.date == date.today()).all()
+    return today_menus
+
+
+@app.post("/vote")
+def vote(vote: VoteCreate, db: Session = Depends(get_db)):
+    db_vote = Vote(employee_id=vote.employee_id, menu_id=vote.menu_id)
+    db.add(db_vote)
+    db.commit()
+    return {"message": "Vote recorded"}
+
+
+@app.get("/results")
+def get_results(db: Session = Depends(get_db)):
+    from sqlalchemy.sql import func
+    results = (
+        db.query(Menu.restaurant_id, func.count(Vote.id).label("votes"))
+        .join(Vote, Vote.menu_id == Menu.id)
+        .filter(Menu.date == date.today())
+        .group_by(Menu.restaurant_id)
+        .all()
+    )
+
+    return [{"restaurant_id": r.restaurant_id, "votes": r.votes} for r in results]

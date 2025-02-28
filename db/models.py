@@ -6,10 +6,11 @@ from db.database import Base
 
 
 class User(Base):
-    __tablename__ = "employees"
+    __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
+    full_name = Column(String)
     password = Column(String)
     disabled = Column(Boolean)
 
@@ -33,5 +34,5 @@ class Menu(Base):
 class Vote(Base):
     __tablename__ = "votes"
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"))
+    employee_id = Column(Integer, ForeignKey("users.id"))
     menu_id = Column(Integer, ForeignKey("menus.id"))
