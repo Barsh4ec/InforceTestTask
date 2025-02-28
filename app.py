@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import and_
 from passlib.context import CryptContext
 from typing import Annotated
+import uvicorn
 
 from db.database import SessionLocal
 from schemas import Token, UserCreate, UserOut, RestaurantCreate, MenuCreate, VoteCreate
@@ -151,3 +152,7 @@ def get_results(db: Session = Depends(get_db)):
     results = get_results_today(db)
 
     return [{"restaurant_id": r.restaurant_id, "votes": r.votes} for r in results]
+
+
+if __name__ == "__main__":
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

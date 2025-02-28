@@ -1,24 +1,20 @@
 version: '3.8'
-
 services:
-
-  web:
-    build: .
-    command: uvicorn app:app --reload --workers 1 --host 0.0.0.0 --port 8000
-    volumes:
-      - .:/usr/src/app
-    ports:
-      - "8004:8000"
+  db:
+    image: postgres:17-alpine
+    restart: always
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/foo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lunch_voting
+    ports:
+      - "5432:5432"
+  app:
+    build: .
     depends_on:
       - db
-
-  db:
-    image: postgres:15.3
-    expose:
-      - 5432
+    ports:
+      - "8000:8000"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=foo
+      env_file: ".env"
+    command: ["/bin/sh", "-c", "alembic upgrade head && uvicorn app:app --host 0.0.0.0 --port 8000 --reload"]
