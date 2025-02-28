@@ -36,3 +36,4 @@ class Vote(Base):
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("users.id"))
     menu_id = Column(Integer, ForeignKey("menus.id"))
+    date = Column(Date, default=date.today)

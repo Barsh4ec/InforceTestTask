@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.sql.expression import and_
 from datetime import date, timedelta, timezone
 import jwt
 from passlib.context import CryptContext
@@ -69,7 +70,7 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-@app.get("/users/me/", response_model=UserCreate)
+@app.get("/users/me", response_model=UserCreate)
 async def read_users_me(
     current_user: Annotated[UserCreate, Depends(get_current_active_user)],
 ):
@@ -80,7 +81,7 @@ def hash_password(password: str):
     return pwd_context.hash(password)
 
 
-@app.post("/users/create/", response_model=UserOut, status_code=201)
+@app.post("/users/create", response_model=UserOut, status_code=201)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
     new_user = User(
@@ -98,6 +99,10 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/restaurants")
 def create_restaurant(restaurant: RestaurantCreate, db: Session = Depends(get_db)):
+    existing_restaurant = db.query(Restaurant).filter(Restaurant.name == restaurant.name).first()
+    if existing_restaurant:
+        raise HTTPException(status_code=400, detail="Restaurant with this name already exists")
+
     db_restaurant = Restaurant(name=restaurant.name)
     db.add(db_restaurant)
     db.commit()
@@ -122,7 +127,14 @@ def get_today_menu(db: Session = Depends(get_db)):
 
 @app.post("/vote")
 def vote(vote: VoteCreate, db: Session = Depends(get_db)):
-    db_vote = Vote(employee_id=vote.employee_id, menu_id=vote.menu_id)
+    existing_vote = db.query(Vote).filter(
+        and_(Vote.employee_id == vote.employee_id, Vote.date == date.today())
+    ).first()
+
+    if existing_vote:
+        raise HTTPException(status_code=400, detail="You have already voted today")
+
+    db_vote = Vote(employee_id=vote.employee_id, menu_id=vote.menu_id, date=date.today())
     db.add(db_vote)
     db.commit()
     return {"message": "Vote recorded"}

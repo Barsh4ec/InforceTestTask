@@ -18,7 +18,7 @@ class UserCreate(BaseModel):
 
 
 class UserInDB(UserCreate):
-    password: str
+    username: str
 
 
 class UserOut(UserCreate):
